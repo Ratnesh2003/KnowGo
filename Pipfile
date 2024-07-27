@@ -15,6 +15,7 @@ pandas = "*"
 whitenoise = "*"
 environ = "*"
 django-environ = "*"
+serpapi = "*"
 
 [dev-packages]
 

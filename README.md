@@ -1,6 +1,6 @@
-# BroGrow-Backend
+# KnowGo-Backend
 
-Bro-Grow is a business icubator Android App which enables entrepreneurs to make smart business decisions based on micro-market.
+Know-Go is a business icubator Android App which enables entrepreneurs to make smart business decisions based on micro-market.
 
 ## Problem Statement
 
@@ -26,15 +26,15 @@ Our app creates insights into the location where you want to open a business usi
 ## Pictures
 
 ### Start Page with SMS Authentication
-![alt text](images/brogrow-home.png "Bro-Grow Start Page")
-![alt text](images/sms-authentication1.png "Bro-Grow SMS Authentication")
-![alt text](images/sms-authentication2.png "Bro-Grow SMS Authentication")
+![alt text](images/knowgo-home.png "Know-Go Start Page")
+![alt text](images/sms-authentication1.png "Know-Go SMS Authentication")
+![alt text](images/sms-authentication2.png "Know-Go SMS Authentication")
 
 ### Home Page
-<img src="images/brogrom-analysis.jpeg" width="290">
+<img src="images/knowgo-analysis.jpeg" width="290">
 <img src="images/competition-analysis.jpeg" width="290">
 
 ### SETU-API to fetch Transaction Details and Calculate CIBIL Score
 
-![alt text](images/transaction-details1.png "Bro-Grow Transaction")
-![alt text](images/transaction-details2.png "Bro-Grow Transaction")
+![alt text](images/transaction-details1.png "Know-Go Transaction")
+![alt text](images/transaction-details2.png "Know-Go Transaction")

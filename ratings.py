@@ -32,35 +32,53 @@ sector_to_category = { ('Hospitality', ''):'accommodation',
                         (''):'alcohol',
     }
 
-def competitor_analysis(pincode, typeOfBusiness="department_store"):
+CATEGORIES_TO_GOOGLE_PLACES = {
+  "Healthcare": ["hospital","drugstore", "dentist", "doctor", "pharmacy", "physiotherapist", "veterinary_care"],
+  "Hospitality": ["lodging", "spa"],
+  "Food": ["restaurant", "cafe", "bar"],
+  "Agriculture": ["florist"],
+  "Automobile": ["car_dealer", "car_rental", "car_repair", "car_wash", "gas_station"],
+  "Construction Materials": ["hardware_store", "roofing_contractor"],
+  "Consumer Durables": ["electronics_store", "home_goods_store", "furniture_store"],
+  "Jewellery": ["jewelry_store"],
+  "Electricals": ["electrician", "electronics_store"],
+  "Finance": ["accounting", "bank", "atm"],
+  "Insurance": ["insurance_agency"],
+  "Media and Entertainment": ["movie_theater", "night_club", "casino", "stadium", "bowling_alley", "movie_rental"],
+  "Software": ["electronics_store"],
+  "Real Estate": ["real_estate_agency"]
+}
 
+def competitor_analysis(pincode, typeOfBusiness="department_store"):
     resolve_pincode_url = f"https://api.geoapify.com/v1/geocode/autocomplete?text={pincode}&apiKey={GEOAPIFY_API_KEY}&limit=1"
     res1 = requests.get(resolve_pincode_url).json()
     feature_res1 = res1['features'][0]['properties']
     lon = feature_res1['lon']
-    lat = feature_res1['lat']    
-    place_api_url_to_hit = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?key={GOOGLE_API_KEY}&location={lat},{lon}&radius=5000&type={typeOfBusiness}"
-    res2 = requests.get(place_api_url_to_hit).json()
-    if res2['status'] == 'OK':
-        competitorsObj = res2['results']
-        competitorList = []
-        for comp in competitorsObj:
-            try:
-                if comp["business_status"] == "OPERATIONAL":
-                    competitorList.append({"competitor_name": comp['name'], "competitor_rating": bayesian_rating(comp['rating'], comp['user_ratings_total'])})
-            except (KeyError):
-                pass
-        competitorList = sorted(competitorList, key=lambda x : x['competitor_rating'], reverse=True)
-        number_of_competitors = len(competitorList)
-        try:
-            competitor_rating = 100/number_of_competitors
-        except ZeroDivisionError:
-            competitor_rating = 0
+    lat = feature_res1['lat']
+    businesses = CATEGORIES_TO_GOOGLE_PLACES[typeOfBusiness]
+    competitorList = []
 
+    for business in businesses:    
+        place_api_url_to_hit = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?key={GOOGLE_API_KEY}&location={lat},{lon}&radius=5000&type={business}"
+        res2 = requests.get(place_api_url_to_hit).json()
+        if res2['status'] == 'OK':
+            competitorsObj = res2['results']
+            
+            for comp in competitorsObj:
+                try:
+                    if comp["business_status"] == "OPERATIONAL":
+                        competitorList.append({"competitor_name": comp['name'], "competitor_rating": bayesian_rating(comp['rating'], comp['user_ratings_total'])})
+                except (KeyError):
+                    pass
+            competitorList = sorted(competitorList, key=lambda x : x['competitor_rating'], reverse=True)
+            number_of_competitors = len(competitorList)
+
+    if competitorList:
+        print(len(competitorList))
         obj = {
             'name':'Competition Score',
-            'rating': competitor_rating,
-            'competitors' : competitorList,
+            'rating': 100/len(competitorList),
+            'competitors' : competitorList[0:5],
             'remarks':''
         }  
     else:
@@ -73,15 +91,19 @@ def competitor_analysis(pincode, typeOfBusiness="department_store"):
     return obj
 
 def oppurtunity_rating(state,businessDistrict):
-    q4_hoverdata_for_state = pd.read_json(f"pulsedata/map/user/hover/country/india/state/{state}/2021/3.json")
-    hoverdata = q4_hoverdata_for_state['data']['hoverData']
-    # print(hoverdata)
+    # q4_hoverdata_for_state = pd.read_json(f"./pulsedata/map/user/hover/country/india/state/{state}/2021/3.json")
+    state = state.lower().replace(' ','-')
+    q4_hoverdata_for_state = requests.get(f"https://www.phonepe.com/pulsestatic/v1/explore-data/map/user/hover/country/india/state/{state}/2021/3.json")
+    print(q4_hoverdata_for_state.status_code)
+    print()
+    # Access the JSON response data
+    json_data = q4_hoverdata_for_state.json()
+    hoverdata = json_data['data']['hoverData']
     appOpenIsToRegUserRatio = []
     for district in hoverdata:
         appOpenIsToRegUserRatio.append({'district':district[:district.find('district')-1],'ratio':(hoverdata[district]['appOpens']/hoverdata[district]['registeredUsers'])})
     sorted_list = sorted(appOpenIsToRegUserRatio, key = lambda i: i['ratio'])
-    # print(sorted_list)
-    district_index = next((index for (index, d) in enumerate(sorted_list) if d["district"] == businessDistrict), None)
+    district_index = next((index for (index, d) in enumerate(sorted_list) if d["district"] == businessDistrict.lower()), None)
     oppurtunity_rating = 1-(district_index/len(sorted_list))
     obj ={
         'name':'Opportunity Score',
@@ -94,7 +116,6 @@ def sectoral_analysis(typeOfBusiness):
     homeUrl = 'https://www.moneycontrol.com/stocks/marketstats/sector-scan/bse/year-to-date.html'
     growthRateSectorWise = percentage_change_sector_fetcher(homeUrl) #[{'sectorName':'Electricals,'percentChange':1.63},{...}]
     Sorted_growth_wise_sector_list = sorted(growthRateSectorWise,key=lambda x : float(x['percentChange'][:-1]), reverse=True)
-    print(Sorted_growth_wise_sector_list)
 
     for sec in Sorted_growth_wise_sector_list:
         sec['percentChange']=sec['percentChange'].rstrip('%')
@@ -118,7 +139,7 @@ def sectoral_analysis(typeOfBusiness):
             break
         else:
             sector_score+=1
-
+    
     sector_rating = sector_score/len(growthRateSectorWise)
 
     # print(Sorted_growth_wise_sector_list)
@@ -136,9 +157,10 @@ def sectoral_analysis(typeOfBusiness):
     return defaultObj
 
 def relative_prosperity(state,district):
-
-    all_district_amount_obj = pd.read_json(f'pulsedata/map/transaction/hover/country/india/state/{state}/2021/4.json')
-    district_payment_amount_hoverdatalist = all_district_amount_obj['data'][0]
+    state = state.lower().replace(' ','-')
+    all_district_amount_obj = requests.get(f'https://www.phonepe.com/pulsestatic/v1/explore-data/map/transaction/hover/country/india/state/{state}/2021/3.json').json()
+    print(all_district_amount_obj)
+    district_payment_amount_hoverdatalist = all_district_amount_obj['data']['hoverDataList']
     district_wise_list = []
     for elem in district_payment_amount_hoverdatalist:
         district_wise_list.append({
@@ -174,7 +196,8 @@ def ease_of_business(pincode, state):
     all_state_mechant_payment_amount = []
     for elem in all_states_list:
         elem = elem.lower().replace(' ','-')
-        state_transaction_data = pd.read_json(f"pulsedata/aggregated/transaction/country/india/state/{elem}/2021/4.json")
+        # state_transaction_data = pd.read_json(f"./pulsedata/aggregated/transaction/country/india/state/{elem}/2021/4.json")
+        state_transaction_data = requests.get(f"https://www.phonepe.com/pulsestatic/v1/explore-data/aggregated/transaction/country/india/state/{elem}/2021/3.json").json()
 
         transactionDataList = state_transaction_data['data']['transactionData']
         for transactData in transactionDataList:
@@ -196,19 +219,17 @@ def ease_of_business(pincode, state):
         })
     sorted_merchant_per_capita_list_descending = sorted(all_state_merchant_per_capita,key= lambda x: x['perCapita'], reverse=True)
 
-    inputState_rank = 0
-    for element in sorted_merchant_per_capita_list_descending:
-        if(element['stateName'] == state):
-            break
-        else:
-            inputState_rank+=1
+    inputState_rank = next((index for (index, d) in enumerate(sorted_merchant_per_capita_list_descending) if d["stateName"] == state), None)
 
-    ease_of_business_rating = (inputState_rank/24)*100
+    if inputState_rank is None:
+        inputState_rank = 1
+    else:
+        inputState_rank+=1
 
+    ease_of_business_rating = (inputState_rank/28)*100
 
-    top_3_states = []
-    for i in range(3):
-        top_3_states.append(sorted_merchant_per_capita_list_descending[i]['stateName'])
+    better_states = sorted_merchant_per_capita_list_descending[:inputState_rank]
+    top_3_states = better_states[0:3]
 
     Obj = {
         'name':'Ease of business Score',
@@ -228,3 +249,57 @@ def Score(scr, bal):
     bal=bal/(10**(digits-3))
     score = ((scr+bal)/(500+bal))*100
     return score
+
+def google_competitor_analysis(pincode, typeOfBusiness="department_store"):
+    resolve_pincode_url = f"https://api.geoapify.com/v1/geocode/autocomplete?text={pincode}&apiKey={GEOAPIFY_API_KEY}&limit=1"
+    res1 = requests.get(resolve_pincode_url).json()
+    feature_res1 = res1['features'][0]['properties']
+    lon = feature_res1['lon']
+    lat = feature_res1['lat']
+    
+    place_api_url_to_hit = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?key={GOOGLE_API_KEY}&location={lat},{lon}&radius=5000&type={typeOfBusiness}"
+    competitorList = []
+    res2 = requests.get(place_api_url_to_hit).json()
+    if res2['status'] == 'OK':
+        competitorsObj = res2['results']
+        for comp in competitorsObj:
+            try:
+                if comp["business_status"] == "OPERATIONAL":
+                    competitorList.append({"competitor_name": comp['name'], "competitor_rating": bayesian_rating(comp['rating'], comp['user_ratings_total']), "place_id": comp['place_id']})
+            except (KeyError):
+                pass
+
+    return competitorList
+
+def competitionsAnalysis(pincode, typeOfBusiness):
+    businesses = CATEGORIES_TO_GOOGLE_PLACES[typeOfBusiness]
+    competitors = []
+    for business in businesses:
+        competitors.extend(google_competitor_analysis(pincode, business))
+    competitors = sorted(competitors, key=lambda x : x['competitor_rating'], reverse=True)
+    competitors = competitors[:2]
+
+    for competitor in competitors:
+        print(competitor)
+        params = {
+            "engine": "google_maps_reviews",
+            "place_id": competitor["place_id"],
+            "api_key": "81d85a34cce5d83bd24b13dfa70bd55a647acfd1d6d7e208c3e2d0193b8f5903",
+            "sort_by": "ratingHigh"
+        }
+
+        results = requests.get("https://serpapi.com/search", params=params).json()
+        print(results)
+        reviews = results.get("reviews", [])
+        best_reviews = [review for review in reviews if review["rating"] >= 3]
+        params = {
+            "engine": "google_maps_reviews",
+            "place_id": competitor["place_id"],
+            "sort_by": "ratingLow",
+            "api_key": "81d85a34cce5d83bd24b13dfa70bd55a647acfd1d6d7e208c3e2d0193b8f5903",
+        }
+        results = requests.get("https://serpapi.com/search", params=params).json()
+        worst_reviews = [review for review in reviews if review["rating"] < 3]
+        competitor["best_reviews"] = best_reviews[:3]
+        competitor["worst_reviews"] = worst_reviews[:3]
+    return competitors

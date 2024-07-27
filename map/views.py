@@ -19,7 +19,10 @@ class BusinessDetails(generics.GenericAPIView):
         district = data.get('district')
         typeOfBusiness = data.get('typeofbusiness') or None
 
-        competitorAnalysis = competitor_analysis(pincode)
+        if typeOfBusiness:
+            typeOfBusiness = typeOfBusiness.title()
+
+        competitorAnalysis = competitor_analysis(pincode, typeOfBusiness)
         oppurtunityRating = oppurtunity_rating(state,district)
         sectoralAnalysis = sectoral_analysis(typeOfBusiness)
         relativeProsperity = relative_prosperity(state,district)
@@ -55,16 +58,15 @@ def credit_score(df):
     except ValueError as e: 
         return e.args[0]
 
-class BroScrView(generics.GenericAPIView):
+class KnowScrView(generics.GenericAPIView):
     def post(self, request):
 
         data = request.data
         pincode = data.get('pincode')
         state = data.get('state')
         district = data.get('district')
-        typeOfBusiness = data.get('typeofbusiness') or None
-
-        competitorScore = competitor_analysis(pincode)['rating']
+        typeOfBusiness = data.get('typeofbusiness')
+        competitorScore = competitor_analysis(pincode, typeOfBusiness)['rating']
         oppurtunityScore = oppurtunity_rating(state,district)['rating']
         sectoralScore = sectoral_analysis(typeOfBusiness)['rating']
         relativeScore = relative_prosperity(state,district)['rating']
@@ -75,7 +77,7 @@ class BroScrView(generics.GenericAPIView):
             bal = float(data['Payload'][0]['data'][0]['decryptedFI']['account']['summary']['currentBalance'])
         else:
             bal = 50468.68
-        return Response({'BroScore':Score(scr, bal)})
+        return Response({'KnowScore':Score(scr, bal)})
 
 class LoanApplicationView(generics.GenericAPIView,
                       mixins.CreateModelMixin,
@@ -135,3 +137,14 @@ class LoanApplicationView(generics.GenericAPIView,
         queryset = self.model.objects.all()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+class CompetitionView(generics.GenericAPIView):
+    def post(self, request):
+        pincode = request.data.get('pincode', None)
+        typeOfBusiness = request.data.get('typeofbusiness', None)
+        if typeOfBusiness:
+            typeOfBusiness = typeOfBusiness.title()
+        return Response({
+            "competitorAnalysis": competitionsAnalysis(pincode, typeOfBusiness),
+        })
